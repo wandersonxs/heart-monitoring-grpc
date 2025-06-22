@@ -6,43 +6,38 @@ option java_package = "br.com.itfree.heartmonitoring.proto";
 option java_outer_classname = "HeartbeatProto";
 
 service HeartbeatService {
-  rpc GetHeartbeats (HeartbeatRequest) returns (HeartbeatResponse); // Unary
 
-  rpc GetHeartbeatsContinuously (HeartbeatRequest) returns (stream HeartbeatCountinuouslyResponse); // Server Streaming
+  rpc RetrievePatientHeartbeatSummary(PatientRequest) returns (HeartbeatSummaryResponse); // Unary
 
-  rpc SendHeartbeatsContinuously (stream HeartbeatClientStreamRequest) returns ( HeartbeatClientStreamResponse); // Client Streaming
+  rpc StreamHeartbeatByPatientName (PatientRequest) returns (stream HeartbeatResponse); // Server Streaming
 
-  rpc SendHeartbeatsContinuouslyReceiveRealTimeSummary (stream HeartbeatClientStreamRequest) returns ( stream HeartbeatClientStreamResponse); // Bidirectional Streaming
+  rpc SendHeartbeatsStreamingAndGetHeartbeatSummary(stream HeartbeatRequest) returns ( HeartbeatSummaryResponse); // Client Streaming
+
+  rpc SendHeartbeatsReceiveRealTimeHeartbeatSummaryResponse (stream HeartbeatRequest) returns ( stream HeartbeatSummaryResponse); // Bidirectional Streaming
 
 }
 
-message HeartbeatRequest {
+message PatientRequest {
   string name = 1;
 }
 
-message HeartbeatMessage {
-  int32 bpm = 1;
-  string timestamp = 2;
+message HeartbeatSummaryResponse {
+  string name = 1;
+  int32 last_bpm = 2;
+  float average_bpm = 3;
+  int32 min_bpm = 4;
+  int32 max_bpm = 5;
+  string timestamp = 6;
 }
 
 message HeartbeatResponse {
-  HeartbeatMessage heartbeats = 1;
-}
-
-message HeartbeatCountinuouslyResponse {
-  repeated HeartbeatMessage heartbeats = 1;
-}
-
-message HeartbeatClientStreamRequest {
   string name = 1;
   int32 bpm = 2;
   string timestamp = 3;
 }
 
-message HeartbeatClientStreamResponse {
+message HeartbeatRequest {
   string name = 1;
-  float average_bpm = 2;
-  int32 min_bpm = 3;
-  int32 max_bpm = 4;
-  string timestamp = 5;
+  int32 bpm = 2;
+  string timestamp = 3;
 }

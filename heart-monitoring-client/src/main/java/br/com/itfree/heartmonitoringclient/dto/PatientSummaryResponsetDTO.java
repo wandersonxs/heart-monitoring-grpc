@@ -16,5 +16,6 @@ public class PatientSummaryResponsetDTO {
     private Float averageBpm;
     private Integer maxBpm;
     private Integer minBpm;
-    private LocalDateTime timestamp;
+    private Integer lastBpm;
+    private String timestamp;
 }
