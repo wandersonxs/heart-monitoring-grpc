@@ -110,6 +110,7 @@ public class HeartbeatGrpcService extends HeartbeatServiceGrpc.HeartbeatServiceI
     @Override
     public StreamObserver<HeartbeatRequest> sendHeartbeatsStreamingAndGetHeartbeatSummary(StreamObserver<HeartbeatSummaryResponse> responseObserver) {
 
+        System.out.println("sendHeartbeatsStreamingAndGetHeartbeatSummary");
         return new StreamObserver<>() {
 
             Optional<Patient> optionalPatient = Optional.empty();

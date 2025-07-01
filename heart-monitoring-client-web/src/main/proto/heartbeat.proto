@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package br.com.itfree.heartmonitoring;
+option java_multiple_files = true;
+option java_package = "br.com.itfree.heartmonitoring.proto";
+option java_outer_classname = "HeartbeatProto";
+
+service HeartbeatService {
+
+  rpc RetrievePatientHeartbeatSummary(PatientRequest) returns (HeartbeatSummaryResponse); // Unary
+
+  rpc StreamHeartbeatByPatientName (PatientRequest) returns (stream HeartbeatResponse); // Server Streaming
+
+  rpc SendHeartbeatsStreamingAndGetHeartbeatSummary(stream HeartbeatRequest) returns ( HeartbeatSummaryResponse); // Client Streaming
+
+  rpc SendHeartbeatsReceiveRealTimeHeartbeatSummaryResponse (stream HeartbeatRequest) returns ( stream HeartbeatSummaryResponse); // Bidirectional Streaming
+
+}
+
+message PatientRequest {
+  string name = 1;
+}
+
+message HeartbeatSummaryResponse {
+  string name = 1;
+  int32 last_bpm = 2;
+  float average_bpm = 3;
+  int32 min_bpm = 4;
+  int32 max_bpm = 5;
+  string timestamp = 6;
+}
+
+message HeartbeatResponse {
+  string name = 1;
+  int32 bpm = 2;
+  string timestamp = 3;
+}
+
+message HeartbeatRequest {
+  string name = 1;
+  int32 bpm = 2;
+  string timestamp = 3;
+}

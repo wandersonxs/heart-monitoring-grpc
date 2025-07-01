@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bidirectional Sum with WebSocket</title>
+</head>
+<body>
+<h2>Send a Number</h2>
+<input type="number" id="numberInput" />
+<button onclick="sendNumber()">Send</button>
+
+<h3>Running Total:</h3>
+<div id="totalOutput">0</div>
+
+<script>
+    const socket = new WebSocket("ws://localhost:8080/sum-websocket");
+
+    socket.onmessage = function(event) {
+        const response = JSON.parse(event.data);
+        document.getElementById("totalOutput").textContent = response.total;
+    };
+
+    function sendNumber() {
+        const input = document.getElementById("numberInput").value;
+        const payload = JSON.stringify({ number: parseInt(input) });
+        socket.send(payload);
+    }
+</script>
+</body>
+</html>
