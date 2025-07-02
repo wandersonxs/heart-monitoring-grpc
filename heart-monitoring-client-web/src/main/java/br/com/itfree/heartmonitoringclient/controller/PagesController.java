@@ -9,13 +9,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class PagesController {
 
     @GetMapping("/")
-    public String form() {
-        return "form-unary";
+    public String root() {
+        return "home";
     }
 
-    @GetMapping("/test")
-    public String formTest() {
-        return "test";
+    @GetMapping("/home")
+    public String home() {
+        return "home";
+    }
+
+    @GetMapping("/form-unary")
+    public String formUnary() {
+        return "form-unary";
     }
 
     @GetMapping("/form-server-streaming")
@@ -29,7 +34,7 @@ public class PagesController {
     }
 
     @GetMapping("/form-bidirectional-streaming")
-    public String formbidirectionalStreaming() {
+    public String formBidirectionalStreaming() {
         return "form-bidirectional-streaming";
     }
 }
