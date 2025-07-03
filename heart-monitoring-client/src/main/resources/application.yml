@@ -1,9 +1,0 @@
-server:
-    port: 8080
-spring:
-    application:
-        name: heart-monitoring-client
-    thymeleaf:
-        cache: false
-        prefix: classpath:/templates/
-        suffix: .html

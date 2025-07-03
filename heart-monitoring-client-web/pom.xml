@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>br.com.itfree.heartmonitoringclient</groupId>
-    <artifactId>heart-monitoring-client</artifactId>
+    <artifactId>heart-monitoring-client-web</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>heart-monitoring-client</name>
-    <description>heart-monitoring-client</description>
+    <name>heart-monitoring-client-web</name>
+    <description>heart-monitoring-client-web</description>
     <url/>
     <licenses>
         <license/>
@@ -35,9 +35,34 @@
     <dependencies>
 
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>nz.net.ultraq.thymeleaf</groupId>
+            <artifactId>thymeleaf-layout-dialect</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.grpc</groupId>
             <artifactId>spring-grpc-client-spring-boot-starter</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
 
         <!-- Lombok -->
         <dependency>

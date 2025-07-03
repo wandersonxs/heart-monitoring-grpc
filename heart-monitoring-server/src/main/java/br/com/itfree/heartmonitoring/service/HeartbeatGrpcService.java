@@ -3,95 +3,71 @@ package br.com.itfree.heartmonitoring.service;
 
 import br.com.itfree.heartmonitoring.model.Heartbeat;
 import br.com.itfree.heartmonitoring.model.Patient;
-import br.com.itfree.heartmonitoring.proto.HeartbeatServiceGrpc;
+import br.com.itfree.heartmonitoring.proto.*;
 import br.com.itfree.heartmonitoring.repository.HeartbeatRepository;
-import br.com.itfree.heartmonitoring.util.HeartbeatGenerator;
+import br.com.itfree.heartmonitoring.repository.PatientRepository;
+import br.com.itfree.heartmonitoring.repository.projection.PatientHeartbeatSummaryProjection;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.grpc.server.service.GrpcService;
-import br.com.itfree.heartmonitoring.proto.HeartbeatRequest;
-import br.com.itfree.heartmonitoring.proto.HeartbeatResponse;
-import br.com.itfree.heartmonitoring.proto.HeartbeatMessage;
-import br.com.itfree.heartmonitoring.proto.HeartbeatCountinuouslyResponse;
-import br.com.itfree.heartmonitoring.proto.HeartbeatClientStreamRequest;
-import br.com.itfree.heartmonitoring.proto.HeartbeatClientStreamResponse;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
 @GrpcService
 public class HeartbeatGrpcService extends HeartbeatServiceGrpc.HeartbeatServiceImplBase {
 
+    private final PatientRepository patientRepository;
     private final HeartbeatRepository heartbeatRepository;
 
-    /**
-     * Unary
-     *
-     * @param request
-     * @param responseObserver
-     */
+
+    // Unary
     @Override
-    public void getHeartbeats(HeartbeatRequest request, StreamObserver<HeartbeatResponse> responseObserver) {
-        String name = request.getName();
-        Heartbeat latest = heartbeatRepository.findLatestByPatientName(name)
-                .orElse(null);
+    public void retrievePatientHeartbeatSummary(PatientRequest patientRequest, StreamObserver<HeartbeatSummaryResponse> heartbeatSummaryResponseStreamObserver) {
 
-        if (latest == null) {
-            responseObserver.onError(new RuntimeException("No heartbeat found for name: " + name));
-            return;
-        }
+        PatientHeartbeatSummaryProjection projection = findSummaryFromLastHourByPatientName(patientRequest, heartbeatSummaryResponseStreamObserver);
 
-        HeartbeatMessage message = HeartbeatMessage.newBuilder()
-                .setBpm(latest.getBpm())
-                .setTimestamp(latest.getTimestamp().toString())
+        if (projection == null) return;
+
+        HeartbeatSummaryResponse response = HeartbeatSummaryResponse.newBuilder()
+                .setName(projection.getName())
+                .setAverageBpm(projection.getAverageBpm())
+                .setMaxBpm(projection.getMaxBpm())
+                .setMinBpm(projection.getMinBpm())
+                .setLastBpm(projection.getLastBpm())
+                .setTimestamp(projection.getTimestamp())
                 .build();
 
-        HeartbeatResponse response = HeartbeatResponse.newBuilder()
-                .setHeartbeats(message)
-                .build();
+        heartbeatSummaryResponseStreamObserver.onNext(response);
+        heartbeatSummaryResponseStreamObserver.onCompleted();
 
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
     }
 
-    /**
-     * Server Streaming
-     *
-     * @param request
-     * @param responseObserver
-     */
+
+    // Server Streaming
     @Override
-    public void getHeartbeatsContinuously(HeartbeatRequest request, StreamObserver<HeartbeatCountinuouslyResponse> responseObserver) {
+    public void streamHeartbeatByPatientName(PatientRequest patientRequest, StreamObserver<HeartbeatResponse> responseObserver) {
 
-        String name = request.getName();
-        Heartbeat latest = heartbeatRepository.findLatestByPatientName(name)
-                .orElse(null);
+        List<Heartbeat> heartbeats = findAllByPatientName(patientRequest, responseObserver);
 
-        if (latest == null) {
-            responseObserver.onError(new RuntimeException("No heartbeat found for name: " + name));
+        if (heartbeats == null) {
+            responseObserver.onError(new RuntimeException("No heartbeat found for name: " + patientRequest.getName()));
             return;
         }
 
         try {
-            for (int i = 0; i <= 10; i++) {
+            for (Heartbeat heartbeat : heartbeats) {
 
-                heartbeatRepository.save(Heartbeat.builder().patient(Patient.builder().id(latest.getPatient().getId()).build()).bpm(HeartbeatGenerator.generateRandomBpm()).timestamp(LocalDateTime.now()).build());
-
-                latest = heartbeatRepository.findLatestByPatientName(name).orElse(null);
-
-                HeartbeatMessage message = HeartbeatMessage.newBuilder()
-                        .setBpm(latest.getBpm())
-                        .setTimestamp(latest.getTimestamp().toString())
+                HeartbeatResponse heartbeatResponse = HeartbeatResponse.newBuilder()
+                        .setBpm(heartbeat.getBpm())
+                        .setTimestamp(heartbeat.getTimestamp().toString())
                         .build();
 
-                HeartbeatCountinuouslyResponse response = HeartbeatCountinuouslyResponse.newBuilder()
-                        .addHeartbeats(message)
-                        .build();
-
-
-                responseObserver.onNext(response);
+                responseObserver.onNext(heartbeatResponse);
                 TimeUnit.SECONDS.sleep(3);
 
             }
@@ -101,30 +77,52 @@ public class HeartbeatGrpcService extends HeartbeatServiceGrpc.HeartbeatServiceI
         responseObserver.onCompleted();
     }
 
-    /**
-     * Client Streaming
-     *
-     * @param responseObserver
-     * @return
-     */
-    @Override
-    public StreamObserver<HeartbeatClientStreamRequest> sendHeartbeatsContinuously(StreamObserver<HeartbeatClientStreamResponse> responseObserver) {
 
+    private PatientHeartbeatSummaryProjection findSummaryFromLastHourByPatientName(PatientRequest patientRequest, StreamObserver<HeartbeatSummaryResponse> responseObserver) {
+
+        Optional<PatientHeartbeatSummaryProjection> optional =
+                heartbeatRepository.findSummaryFromLast10RecordsByPatientName(patientRequest.getName());
+
+        if (optional.isEmpty()) {
+            Status status = Status.NOT_FOUND.withDescription("No heartbeat found for name: " + patientRequest.getName());
+            responseObserver.onError(status.asRuntimeException());
+            return null;
+        }
+
+        return optional.get();
+    }
+
+    private List<Heartbeat> findAllByPatientName(PatientRequest patientRequest, StreamObserver<HeartbeatResponse> heartbeatResponseStreamObserver) {
+
+        List<Heartbeat> heartbeats = heartbeatRepository.findAllByPatientName(patientRequest.getName());
+
+        if (heartbeats == null || heartbeats.isEmpty()) {
+            Status status = Status.NOT_FOUND.withDescription("No heartbeat found for name: " + patientRequest.getName());
+            heartbeatResponseStreamObserver.onError(status.asRuntimeException());
+            return null;
+        }
+
+        return heartbeats;
+    }
+
+
+    // Client Streaming
+    @Override
+    public StreamObserver<HeartbeatRequest> sendHeartbeatsStreamingAndGetHeartbeatSummary(StreamObserver<HeartbeatSummaryResponse> responseObserver) {
+
+        System.out.println("sendHeartbeatsStreamingAndGetHeartbeatSummary");
         return new StreamObserver<>() {
-            String name = null;
+
+            Optional<Patient> optionalPatient = Optional.empty();
 
             @Override
-            public void onNext(HeartbeatClientStreamRequest heartbeatClientStreamRequest) {
+            public void onNext(HeartbeatRequest heartbeatRequest) {
 
-                name = heartbeatClientStreamRequest.getName();
-                Heartbeat latest = heartbeatRepository.findLatestByPatientName(name).orElse(null);
-
-                if (latest == null) {
-                    responseObserver.onError(new RuntimeException("No heartbeat found for name: " + name));
+                optionalPatient = patientRepository.findByName(heartbeatRequest.getName());
+                if (optionalPatient.isEmpty()) {
+                    Status status = Status.NOT_FOUND.withDescription("No heartbeat found for name: " + heartbeatRequest.getName());
                 }
-
-                heartbeatRepository.save(Heartbeat.builder().patient(Patient.builder().id(latest.getPatient().getId()).build()).bpm(heartbeatClientStreamRequest.getBpm()).timestamp(LocalDateTime.now()).build());
-
+                saveHeartbeat(optionalPatient, heartbeatRequest);
             }
 
             @Override
@@ -138,24 +136,23 @@ public class HeartbeatGrpcService extends HeartbeatServiceGrpc.HeartbeatServiceI
                 Float averageBpm = 0.0F;
                 Integer minBpm = 0;
                 Integer maxBpm = 0;
+                Integer lastBpm = 0;
 
-                Heartbeat latest = heartbeatRepository.findLatestByPatientName(name).orElse(null);
+                List<Heartbeat> heartbeats = heartbeatRepository.findAllByPatientName(optionalPatient.get().getName());
 
-                if (latest == null) {
-                    responseObserver.onError(new RuntimeException("No heartbeat found for name: " + name));
-                }
-                List<Heartbeat> list = heartbeatRepository.findByPatientId(latest.getPatient().getId());
-
-                for (Heartbeat heartbeat : list) {
+                for (Heartbeat heartbeat : heartbeats) {
                     averageBpm += heartbeat.getBpm();
                     minBpm = minBpm == 0 ? heartbeat.getBpm() : Math.min(minBpm, heartbeat.getBpm());
                     maxBpm = Math.max(maxBpm, heartbeat.getBpm());
+                    lastBpm = heartbeat.getBpm();
                 }
 
-                averageBpm = averageBpm / list.size();
+                averageBpm = averageBpm / heartbeats.size();
 
-                HeartbeatClientStreamResponse heartbeatClientStreamResponse = HeartbeatClientStreamResponse.newBuilder()
-                        .setName(name)
+
+                HeartbeatSummaryResponse heartbeatClientStreamResponse = HeartbeatSummaryResponse.newBuilder()
+                        .setName(optionalPatient.get().getName())
+                        .setLastBpm(lastBpm)
                         .setAverageBpm(averageBpm)
                         .setMaxBpm(maxBpm)
                         .setMinBpm(minBpm)
@@ -163,56 +160,31 @@ public class HeartbeatGrpcService extends HeartbeatServiceGrpc.HeartbeatServiceI
                         .build();
                 responseObserver.onNext(heartbeatClientStreamResponse);
                 responseObserver.onCompleted();
+
             }
         };
-
     }
 
     @Override
-    public StreamObserver<HeartbeatClientStreamRequest> sendHeartbeatsContinuouslyReceiveRealTimeSummary(StreamObserver<HeartbeatClientStreamResponse> responseObserver) {
+    public StreamObserver<HeartbeatRequest> sendHeartbeatsReceiveRealTimeHeartbeatSummaryResponse(StreamObserver<HeartbeatSummaryResponse> responseObserver) {
 
         return new StreamObserver<>() {
-            String name = null;
+
+            Optional<Patient> optionalPatient = Optional.empty();
 
             @Override
-            public void onNext(HeartbeatClientStreamRequest heartbeatClientStreamRequest) {
-                Float averageBpm = 0.0F;
-                Integer minBpm = 0;
-                Integer maxBpm = 0;
-                name = heartbeatClientStreamRequest.getName();
+            public void onNext(HeartbeatRequest heartbeatRequest) {
 
-                Heartbeat latest = heartbeatRepository.findLatestByPatientName(name).orElse(null);
-
-                if (latest == null) {
-                    responseObserver.onError(new RuntimeException("No heartbeat found for name: " + name));
+                optionalPatient = patientRepository.findByName(heartbeatRequest.getName());
+                if (optionalPatient.isEmpty()) {
+                    Status status = Status.NOT_FOUND.withDescription("No heartbeat found for name: " + heartbeatRequest.getName());
                 }
 
-                heartbeatRepository.save(Heartbeat.builder().patient(Patient.builder().id(latest.getPatient().getId()).build()).bpm(heartbeatClientStreamRequest.getBpm()).timestamp(LocalDateTime.now()).build());
+                saveHeartbeat(optionalPatient, heartbeatRequest);
 
-                List<Heartbeat> list = heartbeatRepository.findByPatientId(latest.getPatient().getId());
+                HeartbeatSummaryResponse heartbeatSummaryResponse = getHeartbeatSummaryResponse(optionalPatient);
+                responseObserver.onNext(heartbeatSummaryResponse);
 
-                for (Heartbeat heartbeat : list) {
-                    averageBpm += heartbeat.getBpm();
-                    minBpm = minBpm == 0 ? heartbeat.getBpm() : Math.min(minBpm, heartbeat.getBpm());
-                    maxBpm = Math.max(maxBpm, heartbeat.getBpm());
-                }
-
-                averageBpm = averageBpm / list.size();
-
-                HeartbeatClientStreamResponse heartbeatClientStreamResponse = HeartbeatClientStreamResponse.newBuilder()
-                        .setName(name)
-                        .setAverageBpm(averageBpm)
-                        .setMaxBpm(maxBpm)
-                        .setMinBpm(minBpm)
-                        .setTimestamp(LocalDateTime.now().toString())
-                        .build();
-
-                responseObserver.onNext(heartbeatClientStreamResponse);
-//                try {
-//                    TimeUnit.SECONDS.sleep(3);
-//                } catch (InterruptedException e) {
-//                    throw new RuntimeException(e);
-//                }
             }
 
             @Override
@@ -225,7 +197,42 @@ public class HeartbeatGrpcService extends HeartbeatServiceGrpc.HeartbeatServiceI
                 responseObserver.onCompleted();
             }
         };
-
     }
 
+    private void saveHeartbeat(Optional<Patient> optionalPatient, HeartbeatRequest heartbeatRequest){
+
+        heartbeatRepository.save(Heartbeat.builder()
+                .patient(optionalPatient.get())
+                .bpm(heartbeatRequest.getBpm())
+                .timestamp(LocalDateTime.now())
+                .build());
+    }
+
+    private HeartbeatSummaryResponse getHeartbeatSummaryResponse(Optional<Patient> optionalPatient) {
+        Float averageBpm = 0.0F;
+        Integer minBpm = 0;
+        Integer maxBpm = 0;
+        Integer lastBpm = 0;
+
+        List<Heartbeat> heartbeats = heartbeatRepository.findAllByPatientName(optionalPatient.get().getName());
+
+        for (Heartbeat heartbeat : heartbeats) {
+            averageBpm += heartbeat.getBpm();
+            minBpm = minBpm == 0 ? heartbeat.getBpm() : Math.min(minBpm, heartbeat.getBpm());
+            maxBpm = Math.max(maxBpm, heartbeat.getBpm());
+            lastBpm = heartbeat.getBpm();
+        }
+
+        averageBpm = averageBpm / heartbeats.size();
+
+
+        return HeartbeatSummaryResponse.newBuilder()
+                .setName(optionalPatient.get().getName())
+                .setLastBpm(lastBpm)
+                .setAverageBpm(averageBpm)
+                .setMaxBpm(maxBpm)
+                .setMinBpm(minBpm)
+                .setTimestamp(LocalDateTime.now().toString())
+                .build();
+    }
 }

@@ -1,11 +1,11 @@
 package br.com.itfree.heartmonitoring.repository;
 
 
-import br.com.itfree.heartmonitoring.model.Heartbeat;
+import br.com.itfree.heartmonitoring.model.Patient;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
+import java.util.Optional;
 
-public interface PatientRepository extends JpaRepository<Heartbeat, Long> {
-    List<Heartbeat> findByPatientId(Long patientId);
+public interface PatientRepository extends JpaRepository<Patient, Long> {
+    Optional<Patient> findByName(String name);
 }
