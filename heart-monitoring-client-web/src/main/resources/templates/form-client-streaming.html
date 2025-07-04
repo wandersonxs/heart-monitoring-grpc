@@ -2,11 +2,10 @@
 <html xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout" layout:decorate="~{layout.html}">
 <head>
     <meta charset="UTF-8">
-    <title>Heartbeat Client Streaming</title>
+    <title>Heartbeat Client Streaming (WebSocket)</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@400;600&display=swap"
-          rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Quicksand:wght@400;600&display=swap" rel="stylesheet"/>
 
     <style>
         body {
@@ -65,18 +64,18 @@
             font-family: 'Pacifico', cursive;
             color: #dc3545;
         }
-
     </style>
 </head>
 <body>
 <section layout:fragment="content">
     <div class="container mt-5">
         <div class="custom-card">
-            <h2 class="mb-4 text-center heartbeat-header">Patient Heartbeat Client Streaming</h2>
+            <h2 class="mb-4 text-center heartbeat-header">Patient Heartbeat Client Streaming (WebSocket)</h2>
 
             <div class="mb-3">
                 <label for="jsonInput" class="form-label">Paste JSON (PatientClientStreamingDTO)</label>
-                <textarea id="jsonInput" class="form-control" rows="4" placeholder='{"name": "Schopenhauer", "heartbeat": 72, "timestamp": "2025-06-21T15:00:00"}'></textarea>
+                <textarea id="jsonInput" class="form-control" rows="4"
+                          placeholder='{"name": "Schopenhauer", "heartbeat": 72, "timestamp": "2025-06-21T15:00:00"}'>{"name": "Schopenhauer", "heartbeat": 72, "timestamp": "2025-06-21T15:00:00"}</textarea>
             </div>
 
             <div class="d-flex gap-2 mb-4 justify-content-center">
@@ -101,79 +100,79 @@
     </div>
 
     <script>
-        let writer = null;
+        let socket;
 
-        async function setupStreamingConnection() {
-            const {readable, writable} = new TransformStream();
-            writer = writable.getWriter();
-
-            fetch('/heartbeat-client-stream', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-ndjson'},
-                body: readable,
-                duplex: 'half'
-            }).then(async response => {
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let result = '';
-
-                while (true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-                    result += decoder.decode(value, {stream: true});
-                    try {
-                        const json = JSON.parse(result);
-                        showSummary(json);
-                        break;
-                    } catch (err) {
-                        // wait for more data
-                    }
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    resolve();
+                    return;
                 }
-            }).catch(err => {
-                console.error('Stream error:', err);
+
+                socket = new WebSocket("ws://localhost:8080/ws/summary");
+
+                socket.onopen = () => {
+                    console.log("WebSocket connected.");
+                    resolve();
+                };
+
+                socket.onmessage = event => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        showSummary(data);
+                    } catch (e) {
+                        console.warn("Invalid message:", event.data);
+                    }
+                };
+
+                socket.onerror = err => {
+                    console.error("WebSocket error:", err);
+                    reject(err);
+                };
+
+                socket.onclose = () => {
+                    console.log("WebSocket connection closed.");
+                };
             });
         }
 
-        document.getElementById('sendBtn').addEventListener('click', async () => {
-            const input = document.getElementById('jsonInput').value.trim();
+        document.getElementById("sendBtn").addEventListener("click", async () => {
+            const input = document.getElementById("jsonInput").value.trim();
             if (!input) return;
 
             try {
                 const json = JSON.parse(input);
                 addSentToList(json);
 
-                if (!writer) await setupStreamingConnection();
+                await connectWebSocket();
+                socket.send(JSON.stringify(json));
 
-                const payload = JSON.stringify(json) + '\n';
-                await writer.write(new TextEncoder().encode(payload));
-
-                document.getElementById('jsonInput').value = '';
-            } catch (err) {
-                alert('Invalid JSON');
+                // document.getElementById("jsonInput").value = "";
+            } catch (e) {
+                alert("Invalid JSON");
             }
         });
 
-        document.getElementById('stopBtn').addEventListener('click', async () => {
-            if (writer) {
-                await writer.close(); // completes the stream
-                writer = null;
+        document.getElementById("stopBtn").addEventListener("click", () => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send("[END]");
             }
         });
 
         function addSentToList(data) {
-            const li = document.createElement('li');
-            li.className = 'list-group-item';
+            const li = document.createElement("li");
+            li.className = "list-group-item";
             li.textContent = `Name: ${data.name}, BPM: ${data.heartbeat}, Time: ${data.timestamp}`;
-            document.getElementById('streamedDataList').appendChild(li);
+            document.getElementById("streamedDataList").appendChild(li);
         }
 
         function showSummary(summary) {
-            document.getElementById('summaryName').textContent = summary.name;
-            document.getElementById('summaryAvg').textContent = summary.averageBpm;
-            document.getElementById('summaryMin').textContent = summary.minBpm;
-            document.getElementById('summaryMax').textContent = summary.maxBpm;
-            document.getElementById('summaryTime').textContent = summary.timestamp;
-            document.getElementById('summaryCard').style.display = 'block';
+            document.getElementById("summaryName").textContent = summary.name;
+            document.getElementById("summaryAvg").textContent = summary.averageBpm;
+            document.getElementById("summaryMin").textContent = summary.minBpm;
+            document.getElementById("summaryMax").textContent = summary.maxBpm;
+            document.getElementById("summaryTime").textContent = summary.timestamp;
+            document.getElementById("summaryCard").style.display = "block";
         }
     </script>
 </section>

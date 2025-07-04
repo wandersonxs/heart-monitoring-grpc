@@ -73,7 +73,7 @@
 
             <div class="mb-3">
                 <label for="jsonInput" class="form-label">Paste JSON (PatientClientStreamingDTO)</label>
-                <textarea id="jsonInput" class="form-control" rows="4" placeholder='{"name": "Schopenhauer", "heartbeat": 72, "timestamp": "2025-06-21T15:00:00"}'></textarea>
+                <textarea id="jsonInput" class="form-control" rows="4" placeholder='{"name": "Schopenhauer", "heartbeat": 72, "timestamp": "2025-06-21T15:00:00"}'>{"name": "Schopenhauer", "heartbeat": 72, "timestamp": "2025-06-21T15:00:00"}</textarea>
             </div>
 
             <div class="d-flex gap-2 mb-4 justify-content-center">
@@ -132,8 +132,6 @@
                 } else {
                     socket.send(JSON.stringify(json));
                 }
-
-                document.getElementById('jsonInput').value = '';
             } catch (err) {
                 alert('Invalid JSON format');
             }

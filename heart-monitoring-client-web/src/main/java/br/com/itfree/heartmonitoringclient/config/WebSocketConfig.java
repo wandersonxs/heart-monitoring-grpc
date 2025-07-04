@@ -2,6 +2,7 @@ package br.com.itfree.heartmonitoringclient.config;
 
 import br.com.itfree.heartmonitoringclient.service.HeartbeatGrpcWebSocketHandler;
 import br.com.itfree.heartmonitoringclient.service.HeartbeatService;
+import br.com.itfree.heartmonitoringclient.service.HeartbeatSummaryWebSocketHandler;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.*;
 
@@ -29,5 +30,8 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(new HeartbeatGrpcWebSocketHandler(heartbeatService), "/ws/heartbeat")
                 .setAllowedOrigins("*");
+        registry.addHandler(new HeartbeatSummaryWebSocketHandler(heartbeatService), "/ws/summary")
+                .setAllowedOrigins("*");
     }
+
 }
